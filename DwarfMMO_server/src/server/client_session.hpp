@@ -4,6 +4,7 @@
 #include <boost/asio.hpp>
 #include <queue>
 #include <vector>
+#include <atomic>
 #include "network/packet.hpp"
 #include "game/player.hpp"
 
@@ -20,6 +21,9 @@ public:
     
     // Start the session
     void start();
+    
+    // Send a shutdown notification to client
+    void sendShutdownNotification();
     
     // Close the session
     void close();
@@ -44,7 +48,7 @@ private:
     boost::asio::io_context& m_ioContext;
     tcp::socket m_socket;
     Server* m_server;
-    bool m_connected;
+    std::atomic<bool> m_connected;
     
     // Player data
     uint32_t m_playerId;

@@ -14,7 +14,8 @@ class Player;
 enum class TileType {
     EMPTY,
     FLOOR,
-    WALL
+    WALL,
+    GREEN_WALL
 };
 
 // Tile structure
@@ -39,6 +40,11 @@ struct Tile {
             case TileType::WALL:
                 symbol = '#';
                 color = {150, 150, 150, 255};
+                solid = true;
+                break;
+            case TileType::GREEN_WALL:
+                symbol = '#';
+                color = {0, 200, 0, 255};
                 solid = true;
                 break;
         }

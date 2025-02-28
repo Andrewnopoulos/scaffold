@@ -59,19 +59,35 @@ Or use CMake GUI to configure and generate the project files.
 - Entity/player movement with collision detection
 - Simple world generation
 - Networking framework with packet serialization/deserialization
+- Multiplayer functionality with player synchronization
+- World modification (place and remove walls)
+- Graceful handling of server disconnections
+- Random player name generation for testing
 
 ## Next Steps
 
-- Implement server side logic
-- Add multiplayer functionality
-- Implement world modification
+- Add more interactive world elements
+- Add resource gathering mechanics
+- Implement crafting system
 - Add Z-layers for height
-- Implement game mechanics
+- Implement chat functionality
+- Add authentication and user accounts
+- Implement persistent player data
 
 ## Controls
 
 - WASD or Arrow keys to move the player character
+- E to place a green wall at your current location
+- R to remove a wall at your current location
 - ESC to exit the game
+
+## Recent Improvements
+
+- **Multiplayer Synchronization**: Players can now see each other in real-time and observe world modifications made by others
+- **Crash Resilience**: Client gracefully handles server disconnections and shutdowns
+- **User Experience**: Random player names with timeout for faster testing
+- **Wall Placement**: Players can place and remove walls which synchronize across all clients
+- **Distance Restriction**: Wall placement is limited to 5 tiles from player's position
 
 ## Network Protocol
 

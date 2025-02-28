@@ -1,12 +1,13 @@
 #include "server/client_session.hpp"
 #include "server/server.hpp"
 #include <iostream>
+#include <thread>
 
 ClientSession::ClientSession(boost::asio::io_context& ioContext, Server* server)
     : m_ioContext(ioContext),
       m_socket(ioContext),
       m_server(server),
-      m_connected(false),
+      m_connected(false), // Initialize atomic bool
       m_playerId(0),
       m_receiveBuffer(1024),
       m_expectedLength(0),
@@ -18,7 +19,7 @@ ClientSession::~ClientSession() {
 }
 
 void ClientSession::start() {
-    m_connected = true;
+    m_connected.store(true);
     
     // Start receiving data
     startReceive();
@@ -27,32 +28,129 @@ void ClientSession::start() {
     // Final ID assignment happens in handleConnectRequest
     m_playerId = 0; // temporary
     
-    std::cout << "Client connected: " << m_socket.remote_endpoint() << std::endl;
+    try {
+        std::cout << "Client connected: " << m_socket.remote_endpoint() << std::endl;
+    } catch (const std::exception& e) {
+        std::cout << "Client connected (endpoint unavailable)" << std::endl;
+    }
 }
 
-void ClientSession::close() {
-    if (!m_connected) {
+void ClientSession::sendShutdownNotification() {
+    // Only send if still connected
+    if (!m_connected.load()) {
         return;
     }
     
     try {
-        // Close the socket
-        m_socket.close();
-        m_connected = false;
+        // Create a disconnect packet with server shutdown message
+        DisconnectPacket packet("Server shutting down");
         
-        // Remove player from the game world
-        if (m_player && m_server) {
-            m_server->removePlayer(m_playerId);
+        // Use synchronous send to ensure it gets through before socket close
+        std::vector<uint8_t> packetData;
+        packet.serialize(packetData);
+        
+        // Add packet length header (4 bytes)
+        std::vector<uint8_t> buffer(4 + packetData.size());
+        uint32_t length = static_cast<uint32_t>(packetData.size());
+        
+        buffer[0] = static_cast<uint8_t>((length >> 24) & 0xFF);
+        buffer[1] = static_cast<uint8_t>((length >> 16) & 0xFF);
+        buffer[2] = static_cast<uint8_t>((length >> 8) & 0xFF);
+        buffer[3] = static_cast<uint8_t>(length & 0xFF);
+        
+        // Copy packet data
+        std::copy(packetData.begin(), packetData.end(), buffer.begin() + 4);
+        
+        // Send directly (synchronous)
+        boost::system::error_code ec;
+        boost::asio::write(m_socket, boost::asio::buffer(buffer), ec);
+        
+        if (ec) {
+            std::cerr << "Error sending shutdown notification: " << ec.message() << std::endl;
+        } else {
+            std::cout << "Sent shutdown notification to client " << m_playerName << " (ID: " << m_playerId << ")" << std::endl;
         }
         
-        std::cout << "Client disconnected: " << m_playerName << " (ID: " << m_playerId << ")" << std::endl;
+        // Short delay to allow the packet to be sent
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        
     } catch (const std::exception& e) {
-        std::cerr << "Error closing client session: " << e.what() << std::endl;
+        std::cerr << "Error sending shutdown notification: " << e.what() << std::endl;
     }
 }
 
+void ClientSession::close() {
+    // Use atomic operation to prevent double-close issues
+    bool expected = true;
+    if (!m_connected.compare_exchange_strong(expected, false)) {
+        // Already closed
+        return;
+    }
+    
+    // For shutdown tracking
+    bool player_removed = false;
+    bool socket_closed = false;
+    
+    // Send shutdown notification first before player cleanup
+    sendShutdownNotification();
+    
+    // Player cleanup - do this first as it's safer
+    try {
+        // Remove player from the game world
+        if (m_player && m_server) {
+            m_server->removePlayer(m_playerId);
+            player_removed = true;
+        }
+    } catch (const std::exception& e) {
+        std::cerr << "Error removing player " << m_playerId << ": " << e.what() << std::endl;
+    }
+    
+    // Socket cleanup
+    try {
+        // Check if socket is open before closing
+        if (m_socket.is_open()) {
+            // First cancel any pending async operations with timeout
+            boost::system::error_code ec;
+            
+            // First shutdown the socket to ensure clean TCP termination
+            m_socket.shutdown(boost::asio::ip::tcp::socket::shutdown_both, ec);
+            if (ec) {
+                std::cerr << "Error shutting down socket: " << ec.message() << std::endl;
+            }
+            
+            // Set socket to non-blocking mode to prevent hanging
+            m_socket.non_blocking(true, ec);
+            if (!ec) {
+                // Cancel any pending operations
+                m_socket.cancel(ec);
+                
+                // Now close the socket - this should be non-blocking now
+                m_socket.close(ec);
+                
+                socket_closed = true;
+                
+                if (ec) {
+                    std::cerr << "Error closing socket: " << ec.message() << std::endl;
+                }
+            } else {
+                std::cerr << "Error setting socket to non-blocking mode: " << ec.message() << std::endl;
+            }
+        } else {
+            socket_closed = true;  // Socket was already closed
+        }
+    } catch (const std::exception& e) {
+        std::cerr << "Exception during socket closure: " << e.what() << std::endl;
+    }
+    
+    std::cout << "Client disconnected: " << m_playerName 
+              << " (ID: " << m_playerId << ")"
+              << " [Player removed: " << (player_removed ? "yes" : "no")
+              << ", Socket closed: " << (socket_closed ? "yes" : "no") << "]" 
+              << std::endl;
+}
+
 void ClientSession::sendPacket(const Packet& packet) {
-    if (!m_connected) {
+    if (!m_connected.load()) {
         return;
     }
     
@@ -105,7 +203,7 @@ std::shared_ptr<Player> ClientSession::getPlayer() const {
 }
 
 void ClientSession::startReceive() {
-    if (!m_connected) {
+    if (!m_connected.load()) {
         return;
     }
     
@@ -121,10 +219,12 @@ void ClientSession::startReceive() {
 
 void ClientSession::handleReceiveHeader(const boost::system::error_code& error, size_t bytesTransferred) {
     if (error) {
-        if (error != boost::asio::error::operation_aborted) {
+        // Only log errors that aren't operation_aborted (server shutdown) or eof (client disconnect)
+        if (error != boost::asio::error::operation_aborted && 
+            error != boost::asio::error::eof) {
             std::cerr << "Receive header error: " << error.message() << std::endl;
-            close();
         }
+        close();
         return;
     }
     
@@ -159,10 +259,12 @@ void ClientSession::handleReceiveHeader(const boost::system::error_code& error, 
 
 void ClientSession::handleReceiveBody(const boost::system::error_code& error, size_t bytesTransferred) {
     if (error) {
-        if (error != boost::asio::error::operation_aborted) {
+        // Only log errors that aren't operation_aborted (server shutdown) or eof (client disconnect)
+        if (error != boost::asio::error::operation_aborted && 
+            error != boost::asio::error::eof) {
             std::cerr << "Receive body error: " << error.message() << std::endl;
-            close();
         }
+        close();
         return;
     }
     
@@ -247,7 +349,7 @@ void ClientSession::processPacket(const uint8_t* data, size_t size) {
 }
 
 void ClientSession::startSend() {
-    if (!m_connected || m_sendQueue.empty()) {
+    if (!m_connected.load() || m_sendQueue.empty()) {
         m_sending = false;
         return;
     }
@@ -269,10 +371,12 @@ void ClientSession::startSend() {
 
 void ClientSession::handleSend(const boost::system::error_code& error, size_t bytesTransferred) {
     if (error) {
-        if (error != boost::asio::error::operation_aborted) {
+        // Only log errors that aren't operation_aborted (server shutdown) or eof (client disconnect)
+        if (error != boost::asio::error::operation_aborted && 
+            error != boost::asio::error::eof) {
             std::cerr << "Send error: " << error.message() << std::endl;
-            close();
         }
+        close();
         return;
     }
     
@@ -454,7 +558,7 @@ void ClientSession::handleWorldModification(const WorldModificationPacket& packe
         // Modify the world
         m_server->getWorld()->setTile(packet.getX(), packet.getY(), tileType);
         
-        // Broadcast to other clients
+        // Broadcast to ALL clients including the sender
         m_server->broadcastWorldModification(packet.getX(), packet.getY(), packet.getTileType());
     }
 }

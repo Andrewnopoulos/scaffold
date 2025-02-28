@@ -1,6 +1,12 @@
 #include <iostream>
 #include <memory>
 #include <string>
+#include <vector>
+#include <cstdlib>
+#include <ctime>
+#include <sys/time.h>
+#include <sys/select.h>
+#include <unistd.h>
 
 #include "client/window.hpp"
 #include "client/renderer.hpp"
@@ -56,6 +62,9 @@ int main(int argc, char* argv[]) {
         // Create input handler
         std::unique_ptr<InputHandler> input = std::make_unique<InputHandler>();
         
+        // Store input handler as window user data so it can be accessed by the world for rendering
+        SDL_SetWindowData(window->getSDLWindow(), "inputHandler", input.get());
+        
         // Create network client
         std::unique_ptr<NetworkClient> network = std::make_unique<NetworkClient>();
         
@@ -68,6 +77,9 @@ int main(int argc, char* argv[]) {
         // Add player to the world
         player->setVisible(true);
         
+        // Game state variables
+        bool running = true;
+        
         // Connect to server
         std::cout << "Connecting to server at " << serverHost << ":" << serverPort << "..." << std::endl;
         if (!network->connect(serverHost, serverPort)) {
@@ -77,13 +89,48 @@ int main(int argc, char* argv[]) {
         }
         std::cout << "Connected to server!" << std::endl;
         
-        // Set up player name
-        std::string playerName = "Player";
-        std::cout << "Enter your player name: ";
-        std::getline(std::cin, playerName);
-        if (playerName.empty()) {
-            playerName = "Player";
-        }
+        // Generate a random player name for testing convenience
+        std::string playerName;
+        const std::vector<std::string> prefixes = {
+            "Brave", "Swift", "Mighty", "Clever", "Wise", "Noble", "Crafty", "Bold", "Nimble", "Loyal"
+        };
+        const std::vector<std::string> nouns = {
+            "Dwarf", "Miner", "Smith", "Warrior", "Explorer", "Digger", "Builder", "Mason", "Crafter", "Forger"
+        };
+        
+        // Seed random generator with current time
+        std::srand(static_cast<unsigned int>(std::time(nullptr)));
+        
+        // Generate random name from combinations
+        playerName = prefixes[std::rand() % prefixes.size()] + 
+                     nouns[std::rand() % nouns.size()] + 
+                     std::to_string(std::rand() % 100);
+        
+        // Allow custom name input but with a timeout
+        std::cout << "Using random name: " << playerName << std::endl;
+        std::cout << "Enter custom name or press Enter to use random name (5s timeout): ";
+        
+        // // Set up non-blocking input with timeout
+        // struct timeval tv;
+        // fd_set fds;
+        // tv.tv_sec = 5;
+        // tv.tv_usec = 0;
+        // FD_ZERO(&fds);
+        // FD_SET(STDIN_FILENO, &fds);
+        
+        // // Wait for input with timeout
+        // if (select(STDIN_FILENO+1, &fds, NULL, NULL, &tv) > 0) {
+        //     std::string input;
+        //     std::getline(std::cin, input);
+        //     if (!input.empty()) {
+        //         playerName = input;
+        //     }
+        // } else {
+        //     // No input within timeout, clear the "Enter custom name" prompt line
+        //     std::cout << std::endl;
+        // }
+        
+        std::cout << "Playing as: " << playerName << std::endl;
         
         // Send connection request
         ConnectRequestPacket connectPacket(playerName);
@@ -196,7 +243,10 @@ int main(int argc, char* argv[]) {
         
         network->setPacketHandler<WorldModificationPacket>([&](const WorldModificationPacket& packet) {
             // Update local world tile
-            world->setTile(packet.getX(), packet.getY(), static_cast<TileType>(packet.getTileType()));
+            TileType tileType = static_cast<TileType>(packet.getTileType());
+            world->setTile(packet.getX(), packet.getY(), tileType);
+            std::cout << "Received world modification: (" << packet.getX() << "," << packet.getY() 
+                      << ") to tile type " << static_cast<int>(tileType) << std::endl;
         });
         
         network->setPacketHandler<WorldChunkPacket>([&](const WorldChunkPacket& packet) {
@@ -219,13 +269,28 @@ int main(int argc, char* argv[]) {
         });
 
         network->setPacketHandler<DisconnectPacket>([&](const DisconnectPacket& packet) {
+            // Get the reason for disconnection
+            std::string reason = packet.getReason();
+            
+            // Check if this is a server shutdown message or unexpected disconnect
+            if (reason == "Server shutting down" || reason == "Server disconnected unexpectedly") {
+                std::cout << "Server disconnected: " << reason << std::endl;
+                // Set running to false to exit the game loop
+                running = false;
+                // Make sure we're disconnected from server
+                network->disconnect();
+                return;
+            }
+            
+            // Otherwise, this is another player disconnecting
             // The server sends player name in the reason field when a player disconnects
-            std::string playerName = packet.getReason();
+            std::string playerName = reason;
             
             // Iterate through entities to find and remove the disconnected player
             for (auto it = world->getEntities().begin(); it != world->getEntities().end(); ) {
                 auto entity = it->second;
                 if (entity->getName() == playerName) {
+                    std::cout << "Player disconnected: " << playerName << std::endl;
                     world->removeEntity(entity->getId());
                     break;
                 } else {
@@ -246,7 +311,6 @@ int main(int argc, char* argv[]) {
         };
 
         // Game loop
-        bool running = true;
         Uint32 lastTime = SDL_GetTicks();
         static Uint32 lastDebugTime = 0;
         

@@ -145,8 +145,32 @@ void NetworkClient::startReceive() {
 
 void NetworkClient::handleReceiveHeader(const boost::system::error_code& error, size_t bytesTransferred) {
     if (error) {
-        std::cerr << "Receive header error: " << error.message() << std::endl;
+        // Only log if it's not just a clean disconnect
+        if (error != boost::asio::error::operation_aborted && 
+            error != boost::asio::error::connection_reset &&
+            error != boost::asio::error::eof) {
+            std::cerr << "Receive header error: " << error.message() << std::endl;
+        } else {
+            std::cout << "Server disconnected: " << error.message() << std::endl;
+        }
+        
+        // Notify about disconnection
+        bool wasConnected = m_connected;
         disconnect();
+        
+        if (wasConnected) {
+            std::cout << "Connection to server lost." << std::endl;
+            
+            // Queue a "Server disconnected" notification packet
+            try {
+                auto disconnectPacket = std::make_unique<DisconnectPacket>("Server disconnected unexpectedly");
+                std::lock_guard<std::mutex> lock(m_packetQueueMutex);
+                m_packetQueue.push(std::move(disconnectPacket));
+            } catch (const std::exception& e) {
+                std::cerr << "Error creating disconnect notification: " << e.what() << std::endl;
+            }
+        }
+        
         return;
     }
     
@@ -174,8 +198,32 @@ void NetworkClient::handleReceiveHeader(const boost::system::error_code& error, 
 
 void NetworkClient::handleReceiveBody(const boost::system::error_code& error, size_t bytesTransferred) {
     if (error) {
-        std::cerr << "Receive body error: " << error.message() << std::endl;
+        // Only log if it's not just a clean disconnect
+        if (error != boost::asio::error::operation_aborted && 
+            error != boost::asio::error::connection_reset &&
+            error != boost::asio::error::eof) {
+            std::cerr << "Receive body error: " << error.message() << std::endl;
+        } else {
+            std::cout << "Server disconnected: " << error.message() << std::endl;
+        }
+        
+        // Notify about disconnection
+        bool wasConnected = m_connected;
         disconnect();
+        
+        if (wasConnected) {
+            std::cout << "Connection to server lost during packet receive." << std::endl;
+            
+            // Queue a "Server disconnected" notification packet
+            try {
+                auto disconnectPacket = std::make_unique<DisconnectPacket>("Server disconnected unexpectedly");
+                std::lock_guard<std::mutex> lock(m_packetQueueMutex);
+                m_packetQueue.push(std::move(disconnectPacket));
+            } catch (const std::exception& e) {
+                std::cerr << "Error creating disconnect notification: " << e.what() << std::endl;
+            }
+        }
+        
         return;
     }
     

@@ -2,9 +2,23 @@
 #include "game/player.hpp"
 #include "game/world.hpp"
 #include "network/client.hpp"
+#include <iostream>
+
+// Helper to convert screen coordinates to tile coordinates
+void InputHandler::screenToTile(int screenX, int screenY, int& tileX, int& tileY) const {
+    // Assuming 16x16 tile size
+    tileX = screenX / 16;
+    tileY = screenY / 16;
+}
 
 bool InputHandler::processInput(Player* player, World* world, NetworkClient* network) {
     SDL_Event event;
+    
+    // Update mouse state
+    int mouseX, mouseY;
+    SDL_GetMouseState(&mouseX, &mouseY);
+    m_mouseX = mouseX;
+    m_mouseY = mouseY;
     
     while (SDL_PollEvent(&event)) {
         switch (event.type) {
@@ -19,7 +33,13 @@ bool InputHandler::processInput(Player* player, World* world, NetworkClient* net
                     return false; // Exit game on ESC
                 }
                 
-                // Handle world modification keys (1, 2, 3 for different tile types)
+                // Toggle wall placement mode with 'G' key
+                if (event.key.keysym.scancode == SDL_SCANCODE_G) {
+                    toggleWallPlacement();
+                    std::cout << "Wall placement mode " << (m_placingWalls ? "enabled" : "disabled") << std::endl;
+                }
+                
+                // Handle world modification keys (1, 2, 3, 4 for different tile types)
                 if (world && network && player) {
                     int playerX = player->getX();
                     int playerY = player->getY();
@@ -35,6 +55,9 @@ bool InputHandler::processInput(Player* player, World* world, NetworkClient* net
                         modifyWorld = true;
                     } else if (event.key.keysym.scancode == SDL_SCANCODE_3) {
                         newType = TileType::WALL;
+                        modifyWorld = true;
+                    } else if (event.key.keysym.scancode == SDL_SCANCODE_4) {
+                        newType = TileType::GREEN_WALL;
                         modifyWorld = true;
                     }
                     
@@ -58,12 +81,23 @@ bool InputHandler::processInput(Player* player, World* world, NetworkClient* net
                         }
                         
                         if (modifyWorld) {
-                            // Update local world immediately for responsiveness
-                            world->setTile(targetX, targetY, newType);
+                            // Calculate distance from player
+                            int dx = targetX - playerX;
+                            int dy = targetY - playerY;
+                            float distance = std::sqrt(dx * dx + dy * dy);
                             
-                            // Send world modification to server
-                            WorldModificationPacket packet(targetX, targetY, static_cast<uint8_t>(newType));
-                            network->sendPacket(packet);
+                            // Check if within interact range
+                            if (distance <= PLAYER_INTERACT_RANGE) {
+                                // Update local world immediately for responsiveness
+                                world->setTile(targetX, targetY, newType);
+                                
+                                // Send world modification to server
+                                WorldModificationPacket packet(targetX, targetY, static_cast<uint8_t>(newType));
+                                network->sendPacket(packet);
+                            } else {
+                                std::cout << "Cannot place tile: too far from player (distance: " 
+                                          << distance << " > " << PLAYER_INTERACT_RANGE << ")" << std::endl;
+                            }
                         }
                     }
                 }
@@ -71,6 +105,33 @@ bool InputHandler::processInput(Player* player, World* world, NetworkClient* net
                 
             case SDL_KEYUP:
                 m_keyStates[event.key.keysym.scancode] = false;
+                break;
+                
+            case SDL_MOUSEBUTTONDOWN:
+                if (m_placingWalls && world && network && player && event.button.button == SDL_BUTTON_LEFT) {
+                    int tileX, tileY;
+                    screenToTile(m_mouseX, m_mouseY, tileX, tileY);
+                    
+                    // Calculate distance from player
+                    int playerX = player->getX();
+                    int playerY = player->getY();
+                    int dx = tileX - playerX;
+                    int dy = tileY - playerY;
+                    float distance = std::sqrt(dx * dx + dy * dy);
+                    
+                    // Check if within interact range
+                    if (distance <= PLAYER_INTERACT_RANGE) {
+                        // Place a green wall at the clicked location
+                        world->setTile(tileX, tileY, TileType::GREEN_WALL);
+                        
+                        // Send world modification to server
+                        WorldModificationPacket packet(tileX, tileY, static_cast<uint8_t>(TileType::GREEN_WALL));
+                        network->sendPacket(packet);
+                    } else {
+                        std::cout << "Cannot place wall: too far from player (distance: " 
+                                  << distance << " > " << PLAYER_INTERACT_RANGE << ")" << std::endl;
+                    }
+                }
                 break;
                 
             default:

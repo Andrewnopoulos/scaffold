@@ -3,6 +3,7 @@
 #include "game/world.hpp"
 #include "game/entity.hpp"
 #include "client/renderer.hpp"
+#include "client/input.hpp"
 
 World::World(int width, int height)
     : m_width(width), m_height(height) {
@@ -23,12 +24,28 @@ void World::update(float deltaTime) {
 
 void World::render(Renderer* renderer) {
     // Render tiles
-    // for (int y = 0; y < m_height; ++y) {
-    //     for (int x = 0; x < m_width; ++x) {
-    //         const Tile& tile = m_tiles[getIndex(x, y)];
-    //         renderer->drawTile(x, y, tile.symbol, tile.color);
-    //     }
-    // }
+    for (int y = 0; y < m_height; ++y) {
+        for (int x = 0; x < m_width; ++x) {
+            const Tile& tile = m_tiles[getIndex(x, y)];
+            if (tile.type != TileType::EMPTY) {
+                renderer->drawTile(x, y, tile.symbol, tile.color);
+            }
+        }
+    }
+    
+    // Render wall placement indicator if in wall placement mode
+    SDL_Window* window = SDL_GL_GetCurrentWindow();
+    if (window) {
+        InputHandler* inputHandler = static_cast<InputHandler*>(SDL_GetWindowData(window, "inputHandler"));
+        if (inputHandler && inputHandler->isPlacingWalls()) {
+            int tileX, tileY;
+            inputHandler->screenToTile(inputHandler->getMouseX(), inputHandler->getMouseY(), tileX, tileY);
+            
+            // Draw a semi-transparent green overlay to show where the wall will be placed
+            SDL_Color previewColor = {0, 200, 0, 128};
+            renderer->drawTile(tileX, tileY, '#', previewColor);
+        }
+    }
     
     // Render entities
     if (m_entities.empty()) {
