@@ -14,7 +14,15 @@ void Entity::render(Renderer* renderer) {
     if (!m_isVisible) {
         return;
     }
-    renderer->drawTile(m_x, m_y, m_symbol, m_color);
+    
+    // Calculate center of the tile
+    int centerX = m_x * 16 + 8;
+    int centerY = m_y * 16 + 8;
+    int radius = 7;  // Slightly smaller than tile size
+    
+    // Draw the entity as a circle with its own color
+    // For network players, we'll use their color which comes from network packets
+    renderer->drawCircle(centerX, centerY, radius, m_color);
 }
 
 bool Entity::move(int dx, int dy, World* world) {

@@ -19,6 +19,7 @@ public:
     
     // Drawing methods
     void drawTile(int x, int y, char symbol, SDL_Color color);
+    void drawCircle(int x, int y, int radius, SDL_Color color);
     void drawRect(int x, int y, int w, int h, SDL_Color color);
     void drawText(int x, int y, const std::string& text, SDL_Color color);
     

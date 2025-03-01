@@ -313,6 +313,8 @@ void ClientSession::processPacket(const uint8_t* data, size_t size) {
                         255
                     };
                     m_player->setColor(color);
+                    // SDL_Color otherColor = {255, 255, 0, 255}; // Yellow
+                    // m_player->setColor(otherColor)
                     m_player->setSymbol(appearancePacket.getSymbol());
                 }
                 

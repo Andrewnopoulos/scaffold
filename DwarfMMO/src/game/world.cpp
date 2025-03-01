@@ -59,16 +59,6 @@ void World::render(Renderer* renderer) {
                 entity->setVisible(true);
             }
             
-            // Draw a slightly larger highlighted square for the entity to make it more visible
-            SDL_Color highlightColor = entity->getColor();
-            highlightColor.r = (highlightColor.r + 128) % 256;
-            highlightColor.g = (highlightColor.g + 128) % 256;
-            highlightColor.b = (highlightColor.b + 128) % 256;
-            
-            renderer->drawRect((entity->getX() * 16) - 2, 
-                               (entity->getY() * 16) - 2, 
-                               20, 20, highlightColor);
-            
             // Now render the entity itself
             entity->render(renderer);
         }

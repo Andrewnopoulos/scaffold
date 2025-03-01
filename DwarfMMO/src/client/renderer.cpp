@@ -56,6 +56,50 @@ void Renderer::drawTile(int x, int y, char symbol, SDL_Color color) {
     // Drawing the actual character would require SDL_ttf
 }
 
+void Renderer::drawCircle(int x, int y, int radius, SDL_Color color) {
+    // Implementation of Bresenham's circle drawing algorithm
+    SDL_SetRenderDrawColor(m_renderer, color.r, color.g, color.b, color.a);
+
+    int offsetX = 0;
+    int offsetY = radius;
+    int d = radius - 1;
+
+    while (offsetY >= offsetX) {
+        // Draw the eight octants of the circle
+        SDL_RenderDrawPoint(m_renderer, x + offsetX, y + offsetY);
+        SDL_RenderDrawPoint(m_renderer, x + offsetY, y + offsetX);
+        SDL_RenderDrawPoint(m_renderer, x - offsetX, y + offsetY);
+        SDL_RenderDrawPoint(m_renderer, x - offsetY, y + offsetX);
+        SDL_RenderDrawPoint(m_renderer, x + offsetX, y - offsetY);
+        SDL_RenderDrawPoint(m_renderer, x + offsetY, y - offsetX);
+        SDL_RenderDrawPoint(m_renderer, x - offsetX, y - offsetY);
+        SDL_RenderDrawPoint(m_renderer, x - offsetY, y - offsetX);
+
+        if (d >= 2*offsetX) {
+            d -= 2*offsetX + 1;
+            offsetX++;
+        }
+        else if (d < 2 * (radius - offsetY)) {
+            d += 2*offsetY - 1;
+            offsetY--;
+        }
+        else {
+            d += 2*(offsetY - offsetX - 1);
+            offsetY--;
+            offsetX++;
+        }
+    }
+    
+    // Fill the circle
+    for (int dy = -radius; dy <= radius; dy++) {
+        for (int dx = -radius; dx <= radius; dx++) {
+            if (dx*dx + dy*dy <= radius*radius) {
+                SDL_RenderDrawPoint(m_renderer, x + dx, y + dy);
+            }
+        }
+    }
+}
+
 void Renderer::drawRect(int x, int y, int w, int h, SDL_Color color) {
     SDL_Rect rect = {x, y, w, h};
     SDL_SetRenderDrawColor(m_renderer, color.r, color.g, color.b, color.a);

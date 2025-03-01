@@ -135,11 +135,20 @@ int main(int argc, char* argv[]) {
         // Send connection request
         ConnectRequestPacket connectPacket(playerName);
         network->sendPacket(connectPacket);
-        
-        // Set up packet handlers
+
         network->setPacketHandler<ConnectAcceptPacket>([&](const ConnectAcceptPacket& packet) {
             uint32_t playerId = packet.getPlayerId();
             player->setId(playerId);
+            
+            // Send appearance information immediately after connection
+            SDL_Color myColor = player->getColor();
+            PlayerAppearancePacket appearanceUpdate(
+                playerId, 
+                player->getSymbol(),
+                myColor.r, myColor.g, myColor.b,
+                playerName
+            );
+            network->sendPacket(appearanceUpdate);
         });
         
         network->setPacketHandler<PlayerPositionPacket>([&](const PlayerPositionPacket& packet) {
@@ -154,9 +163,9 @@ int main(int argc, char* argv[]) {
                     newPlayer->setName("Player " + std::to_string(playerId)); // Default name until we get appearance
                     newPlayer->setVisible(true); // Ensure visibility is set
                     
-                    // Try setting a different color to make it more obvious
-                    SDL_Color otherColor = {0, 255, 0, 255}; // Make it bright green
-                    newPlayer->setColor(otherColor);
+                    // // Set other players to yellow
+                    // SDL_Color otherColor = {255, 255, 0, 255}; // Yellow
+                    // newPlayer->setColor(otherColor);
                     
                     // Insert it into the world
                     world->addEntity(newPlayer);
@@ -206,6 +215,7 @@ int main(int argc, char* argv[]) {
                     packet.getColorB(),
                     255 // Alpha is always 255
                 };
+
                 otherPlayer->setColor(color);
                 otherPlayer->setName(packet.getName());
                 otherPlayer->setVisible(true); // Ensure visibility is set
@@ -227,10 +237,6 @@ int main(int argc, char* argv[]) {
                     newPlayer->setId(playerId);
                     newPlayer->setName(playerInfo.name);
                     newPlayer->setVisible(true); // Ensure visibility is set
-                    
-                    // Set a distinctive color
-                    SDL_Color otherColor = {0, 0, 255, 255}; // Make it blue
-                    newPlayer->setColor(otherColor);
                     
                     world->addEntity(newPlayer);
                 } else {
@@ -328,16 +334,6 @@ int main(int argc, char* argv[]) {
             //     // Force a position update of our own player
             //     PlayerPositionPacket posUpdate(player->getId(), player->getX(), player->getY());
             //     network->sendPacket(posUpdate);
-                
-            //     // Force an appearance update for our player too
-            //     SDL_Color myColor = player->getColor();
-            //     PlayerAppearancePacket appearanceUpdate(
-            //         player->getId(),
-            //         player->getSymbol(),
-            //         myColor.r, myColor.g, myColor.b,
-            //         playerName
-            //     );
-            //     network->sendPacket(appearanceUpdate);
             // }
             
             // Handle input

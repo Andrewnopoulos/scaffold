@@ -1,12 +1,24 @@
 #include "game/player.hpp"
 #include "game/world.hpp"
 #include "client/renderer.hpp"
+#include <random>
+#include <ctime>
 
 Player::Player(int x, int y)
     : Entity(x, y, '@') {
+
+    // Set up random number generator
+    static std::mt19937 rng(static_cast<unsigned int>(std::time(nullptr)));
+    std::uniform_int_distribution<int> dist(0, 255);
     
-    // Set player color to yellow
-    m_color = {255, 255, 0, 255};
+    // Set player color to a random color
+    m_color = {
+        static_cast<unsigned char>(dist(rng)),  // Random red
+        static_cast<unsigned char>(dist(rng)),  // Random green
+        static_cast<unsigned char>(dist(rng)),  // Random blue
+        255  // Keep full opacity
+    };
+    
     m_name = "Player";
 }
 
@@ -19,13 +31,14 @@ void Player::render(Renderer* renderer) {
     if (!m_isVisible) {
         return;
     }
-    // Call base class render
-    Entity::render(renderer);
     
-    // Additional player-specific rendering
-    // For example, you might want to highlight the player's position
-    SDL_Color highlightColor = {255, 255, 0, 64}; // Semi-transparent yellow
-    renderer->drawRect(m_x * 16 - 2, m_y * 16 - 2, 20, 20, highlightColor);
+    // Render player as a green circle instead of using base class render
+    int centerX = m_x * 16 + 8;  // Center of the tile
+    int centerY = m_y * 16 + 8;
+    int radius = 7;  // Slightly smaller than tile size
+    
+    // Draw the player circle
+    renderer->drawCircle(centerX, centerY, radius, m_color);
 }
 
 bool Player::move(int dx, int dy, World* world) {
