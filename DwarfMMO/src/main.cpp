@@ -131,6 +131,8 @@ int main(int argc, char* argv[]) {
         // }
         
         std::cout << "Playing as: " << playerName << std::endl;
+
+        player->setName(playerName);
         
         // Send connection request
         ConnectRequestPacket connectPacket(playerName);

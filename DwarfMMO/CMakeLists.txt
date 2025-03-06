@@ -7,10 +7,12 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Find packages
 find_package(SDL2 REQUIRED)
+find_package(SDL2_ttf REQUIRED)
 find_package(Boost REQUIRED COMPONENTS system thread)
 
 # Include directories
 include_directories(${SDL2_INCLUDE_DIRS})
+include_directories(${SDL2_TTF_INCLUDE_DIRS})
 include_directories(${Boost_INCLUDE_DIRS})
 include_directories(${CMAKE_SOURCE_DIR}/include)
 include_directories(${CMAKE_SOURCE_DIR}/src)
@@ -25,6 +27,7 @@ add_executable(${PROJECT_NAME} ${SOURCE_FILES})
 
 # Link libraries
 target_link_libraries(${PROJECT_NAME} ${SDL2_LIBRARIES})
+target_link_libraries(${PROJECT_NAME} SDL2_ttf)
 target_link_libraries(${PROJECT_NAME} ${Boost_LIBRARIES})
 
 # Copy assets to build directory

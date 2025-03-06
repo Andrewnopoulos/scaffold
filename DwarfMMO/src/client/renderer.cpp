@@ -1,5 +1,6 @@
 #include "client/renderer.hpp"
 #include <stdexcept>
+#include <SDL2/SDL_ttf.h>
 
 Renderer::Renderer(Window* window) {
     m_renderer = SDL_CreateRenderer(
@@ -15,7 +16,16 @@ Renderer::Renderer(Window* window) {
     // Set initial render color
     SDL_SetRenderDrawColor(m_renderer, 0, 0, 0, 255);
     
-    // For a full implementation, you'd initialize SDL_ttf and load a font here
+    // Initialize SDL_ttf
+    if (TTF_Init() == -1) {
+        throw std::runtime_error("Failed to initialize SDL_ttf: " + std::string(TTF_GetError()));
+    }
+    
+    // Load font
+    m_font = TTF_OpenFont("assets/fonts/DejaVuSans.ttf", 12);
+    if (!m_font) {
+        throw std::runtime_error("Failed to load font: " + std::string(TTF_GetError()));
+    }
 }
 
 Renderer::~Renderer() {
@@ -23,7 +33,11 @@ Renderer::~Renderer() {
         SDL_DestroyRenderer(m_renderer);
     }
     
-    // For a full implementation, you'd clean up SDL_ttf resources here
+    // Clean up SDL_ttf resources
+    if (m_font) {
+        TTF_CloseFont(m_font);
+    }
+    TTF_Quit();
 }
 
 void Renderer::clear() {
@@ -107,6 +121,34 @@ void Renderer::drawRect(int x, int y, int w, int h, SDL_Color color) {
 }
 
 void Renderer::drawText(int x, int y, const std::string& text, SDL_Color color) {
-    // This would require SDL_ttf in a full implementation
-    // For now, this is just a placeholder
+    if (!m_font || text.empty()) {
+        return;
+    }
+    
+    // Render text to a surface
+    SDL_Surface* textSurface = TTF_RenderText_Solid(m_font, text.c_str(), color);
+    if (!textSurface) {
+        return;
+    }
+    
+    // Create texture from the surface
+    SDL_Texture* textTexture = SDL_CreateTextureFromSurface(m_renderer, textSurface);
+    if (!textTexture) {
+        SDL_FreeSurface(textSurface);
+        return;
+    }
+    
+    // Calculate text position and render
+    SDL_Rect destRect = {
+        x - textSurface->w / 2, // Center horizontally
+        y,
+        textSurface->w,
+        textSurface->h
+    };
+    
+    SDL_RenderCopy(m_renderer, textTexture, NULL, &destRect);
+    
+    // Clean up
+    SDL_DestroyTexture(textTexture);
+    SDL_FreeSurface(textSurface);
 }

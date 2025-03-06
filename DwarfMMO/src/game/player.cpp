@@ -32,13 +32,17 @@ void Player::render(Renderer* renderer) {
         return;
     }
     
-    // Render player as a green circle instead of using base class render
+    // Render player as a colored circle
     int centerX = m_x * 16 + 8;  // Center of the tile
     int centerY = m_y * 16 + 8;
     int radius = 7;  // Slightly smaller than tile size
     
     // Draw the player circle
     renderer->drawCircle(centerX, centerY, radius, m_color);
+    
+    // Draw player name above the player
+    SDL_Color textColor = {255, 255, 255, 255};  // White text for better visibility
+    renderer->drawText(centerX, centerY - radius - 10, m_name, textColor);
 }
 
 bool Player::move(int dx, int dy, World* world) {

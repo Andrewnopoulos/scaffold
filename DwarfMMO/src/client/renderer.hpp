@@ -1,6 +1,7 @@
 #pragma once
 
 #include <SDL2/SDL.h>
+#include <SDL2/SDL_ttf.h>
 #include <string>
 #include "client/window.hpp"
 
@@ -32,8 +33,7 @@ public:
     
 private:
     SDL_Renderer* m_renderer;
-    // For a full implementation, you'd add a font here
-    // SDL_TTF_Font* m_font;
+    TTF_Font* m_font;
     
     // Tile size for grid-based rendering
     static constexpr int TILE_SIZE = 16;
