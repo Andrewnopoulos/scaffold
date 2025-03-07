@@ -95,54 +95,42 @@ std::unique_ptr<Packet> Packet::createFromRawData(const uint8_t* data, size_t si
     }
     
     PacketType type = static_cast<PacketType>(data[0]);
-    std::cerr << "Creating packet from raw data, type: " << static_cast<int>(type) << std::endl;
     
     std::unique_ptr<Packet> packet;
     
     switch (type) {
         case PacketType::CONNECT_REQUEST:
             packet = std::make_unique<ConnectRequestPacket>();
-            std::cerr << "Created ConnectRequestPacket" << std::endl;
             break;
         case PacketType::CONNECT_ACCEPT:
             packet = std::make_unique<ConnectAcceptPacket>();
-            std::cerr << "Created ConnectAcceptPacket" << std::endl;
             break;
         case PacketType::DISCONNECT:
             packet = std::make_unique<DisconnectPacket>();
-            std::cerr << "Created DisconnectPacket" << std::endl;
             break;
         case PacketType::PING:
             packet = std::make_unique<PingPacket>();
-            std::cerr << "Created PingPacket" << std::endl;
             break;
         case PacketType::PONG:
             packet = std::make_unique<PongPacket>();
-            std::cerr << "Created PongPacket" << std::endl;
             break;
         case PacketType::PLAYER_POSITION:
             packet = std::make_unique<PlayerPositionPacket>();
-            std::cerr << "Created PlayerPositionPacket" << std::endl;
             break;
         case PacketType::PLAYER_APPEARANCE:
             packet = std::make_unique<PlayerAppearancePacket>();
-            std::cerr << "Created PlayerAppearancePacket" << std::endl;
             break;
         case PacketType::WORLD_CHUNK:
             packet = std::make_unique<WorldChunkPacket>();
-            std::cerr << "Created WorldChunkPacket" << std::endl;
             break;
         case PacketType::WORLD_MODIFICATION:
             packet = std::make_unique<WorldModificationPacket>();
-            std::cerr << "Created WorldModificationPacket" << std::endl;
             break;
         case PacketType::CHAT_MESSAGE:
             packet = std::make_unique<ChatMessagePacket>();
-            std::cerr << "Created ChatMessagePacket" << std::endl;
             break;
         case PacketType::PLAYER_LIST:
             packet = std::make_unique<PlayerListPacket>();
-            std::cerr << "Created PlayerListPacket" << std::endl;
             break;
         default:
             std::cerr << "Unknown packet type: " << static_cast<int>(type) << std::endl;
@@ -160,8 +148,6 @@ std::unique_ptr<Packet> Packet::createFromRawData(const uint8_t* data, size_t si
             const PlayerListPacket* plp = static_cast<const PlayerListPacket*>(packet.get());
             std::cerr << "Successfully deserialized PlayerListPacket with " 
                       << plp->getPlayers().size() << " players" << std::endl;
-        } else {
-            std::cerr << "Successfully deserialized packet of type " << static_cast<int>(type) << std::endl;
         }
     } catch (const std::exception& e) {
         std::cerr << "Exception while deserializing packet: " << e.what() << std::endl;

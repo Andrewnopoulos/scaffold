@@ -105,20 +105,12 @@ void NetworkClient::sendPacket(const Packet& packet) {
 void NetworkClient::update() {
     std::lock_guard<std::mutex> lock(m_packetQueueMutex);
     
-    if (!m_packetQueue.empty()) {
-        std::cout << "Processing " << m_packetQueue.size() << " queued packets" << std::endl;
-    }
-    
     while (!m_packetQueue.empty()) {
         auto& packet = m_packetQueue.front();
-        
-        // Log each packet we're processing
-        std::cout << "Processing packet of type: " << static_cast<int>(packet->getType()) << std::endl;
         
         // Call packet handler if registered
         auto handlerIt = m_packetHandlers.find(static_cast<uint8_t>(packet->getType()));
         if (handlerIt != m_packetHandlers.end()) {
-            std::cout << "Handler found for packet type: " << static_cast<int>(packet->getType()) << std::endl;
             handlerIt->second(*packet);
         } else {
             std::cout << "No handler registered for packet type: " << static_cast<int>(packet->getType()) << std::endl;
@@ -235,14 +227,11 @@ void NetworkClient::handleReceiveBody(const boost::system::error_code& error, si
 }
 
 void NetworkClient::processPacket(const uint8_t* data, size_t size) {
-    std::cout << "NetworkClient::processPacket - Processing " << size << " bytes" << std::endl;
     
     // Create packet from raw data
     auto packet = Packet::createFromRawData(data, size);
     
     if (packet) {
-        std::cout << "Created packet of type: " << static_cast<int>(packet->getType()) << std::endl;
-        
         // Add packet to queue
         std::lock_guard<std::mutex> lock(m_packetQueueMutex);
         m_packetQueue.push(std::move(packet));
